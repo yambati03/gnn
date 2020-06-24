@@ -145,6 +145,24 @@ def construct_feed_dict(features, support, labels, labels_mask, placeholders):
     feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
     return feed_dict
 
+def doubly_stochastic_normalization(edge_features):
+    ksum = np.repeat(np.sum(edge_features, axis=0)[:, :, np.newaxis], edge_features.shape[0], axis=2)
+    features = np.divide(edge_features, ksum)
+
+    #TODO: finish implementing second normalization step
+
+    return features
+
+
+def construct_edge_feed_dict(node_features, edge_features, support, labels, labels_mask, placeholders):
+    """Construct feed dictionary for edge-enhanced model."""
+    feed_dict = dict()
+    feed_dict.update({placeholders['labels']: labels})
+    feed_dict.update({placeholders['labels_mask']: labels_mask})
+    feed_dict.update({placeholders['node_features']: node_features})
+    feed_dict.update({placeholders['edge_features']: edge_features})
+    feed_dict.update({placeholders['support'][i]: support[i] for i in range(len(support))})
+    return feed_dict
 
 def chebyshev_polynomials(adj, k):
     """Calculate Chebyshev polynomials up to order k. Return a list of sparse matrices (tuple representation)."""

@@ -175,3 +175,86 @@ class GCN(Model):
 
     def predict(self):
         return tf.nn.softmax(self.outputs)
+
+class EGCN(Model):
+    def __init__(self, placeholders, node_input_dim, edge_input_dim, **kwargs):
+        super(GCN, self).__init__(**kwargs)
+
+        self.node_inputs = placeholders['node_features']
+        self.node_input_dim = node_input_dim
+
+        self.edge_inputs = placeholders['edge_features']
+        self.edge_input_dim = edge_input_dim
+        # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
+        self.output_dim = placeholders['labels'].get_shape().as_list()[1]
+        self.placeholders = placeholders
+
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
+
+        self.build()
+
+    def _loss(self):
+        # Weight decay loss
+        for var in self.layers[0].vars.values():
+            self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
+
+        # Cross entropy error
+        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
+                                                  self.placeholders['labels_mask'])
+
+    def _accuracy(self):
+        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
+                                        self.placeholders['labels_mask'])
+
+    def _build(self):
+
+        self.layers.append(EdgeGraphConvolution(node_input_dim=self.node_input_dim,
+                                            edge_input_dim=self.edge_input_dim,
+                                            output_dim=FLAGS.hidden1,
+                                            placeholders=self.placeholders,
+                                            act=tf.nn.relu,
+                                            dropout=True,
+                                            sparse_inputs=True,
+                                            logging=self.logging))
+
+        self.layers.append(EdgeGraphConvolution(node_input_dim=FLAGS.hidden1,
+                                            edge_input_dim=self.edge_input_dim,
+                                            output_dim=self.output_dim,
+                                            placeholders=self.placeholders,
+                                            act=lambda x: x,
+                                            dropout=True,
+                                            logging=self.logging))
+
+    def predict(self):
+        return tf.nn.softmax(self.outputs)
+
+"""Adapted from Parisot et. al"""
+
+class Deep_GCN(GCN):
+    def __init__(self, placeholders, input_dim, depth, **kwargs):
+        super(Deep_GCN, self).__init__(placeholders, input_dim, **kwargs)
+        self.depth = depth
+
+    def _build(self):
+
+        self.layers.append(GraphConvolution(input_dim=self.input_dim,
+                                            output_dim=FLAGS.hidden1,
+                                            placeholders=self.placeholders,
+                                            act=tf.nn.relu,
+                                            dropout=True,
+                                            sparse_inputs=True,
+                                            logging=self.logging))
+        for i in range(self.depth):
+            self.layers.append(GraphConvolution(input_dim=FLAGS.hidden1,
+                                                output_dim=FLAGS.hidden1,
+                                               placeholders=self.placeholders,
+                                                act=tf.nn.relu,
+                                                dropout=True,
+                                                logging=self.logging))
+
+        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden1,
+                                            output_dim=self.output_dim,
+                                            placeholders=self.placeholders,
+                                            act=lambda x: x,
+                                            dropout=True,
+                                            logging=self.logging))

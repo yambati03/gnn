@@ -11,6 +11,7 @@ from gcn.models import GCN, MLP
 seed = 123
 np.random.seed(seed)
 tf.set_random_seed(seed)
+edge_enhanced = True
 
 # Settings
 flags = tf.app.flags
@@ -42,18 +43,35 @@ elif FLAGS.model == 'dense':
     support = [preprocess_adj(adj)]  # Not used
     num_supports = 1
     model_func = MLP
+elif FLAGS.model == 'egcn':
+    support = [preprocess_adj(adj)]
+    num_supports = 1
+    model_func = EGCN
 else:
     raise ValueError('Invalid argument for model: ' + str(FLAGS.model))
 
 # Define placeholders
-placeholders = {
-    'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
-    'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
-    'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
-    'labels_mask': tf.placeholder(tf.int32),
-    'dropout': tf.placeholder_with_default(0., shape=()),
-    'num_features_nonzero': tf.placeholder(tf.int32)  # helper variable for sparse dropout
-}
+if edge_enhanced:
+    placeholders = {
+        'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
+        'node_features': tf.sparse_placeholder(tf.float32, shape=tf.constant(node_features[2], dtype=tf.int64)),
+        'edge_features': tf.sparse_placeholder(tf.float32, shape=tf.constant(edge_features[2], dtype=tf.int64)),
+        'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
+        'labels_mask': tf.placeholder(tf.int32),
+        'dropout': tf.placeholder_with_default(0., shape=()),
+        'num_features_nonzero': tf.placeholder(tf.int32)  # helper variable for sparse dropout
+    }
+else:
+    placeholders = {
+        'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
+        'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
+        'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
+        'labels_mask': tf.placeholder(tf.int32),
+        'dropout': tf.placeholder_with_default(0., shape=()),
+        'num_features_nonzero': tf.placeholder(tf.int32)  # helper variable for sparse dropout
+    }
+
+
 
 # Create model
 model = model_func(placeholders, input_dim=features[2][1], logging=True)
